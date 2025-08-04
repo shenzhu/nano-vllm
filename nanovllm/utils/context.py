@@ -4,6 +4,8 @@ import torch
 
 @dataclass
 class Context:
+    """Set up some global variables.
+    """
     is_prefill: bool = False
     cu_seqlens_q: torch.Tensor | None = None
     cu_seqlens_k: torch.Tensor | None = None

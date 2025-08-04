@@ -56,6 +56,7 @@ class Sequence:
 
     @property
     def num_blocks(self):
+        # Round up the number of blocks
         return (self.num_tokens + self.block_size - 1) // self.block_size
 
     @property
