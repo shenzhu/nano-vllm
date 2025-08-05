@@ -9,6 +9,12 @@ def main():
     llm = LLM(path, enforce_eager=True, tensor_parallel_size=1)
 
     sampling_params = SamplingParams(temperature=0.6, max_tokens=256)
+
+    # Apply chat template to inputs, after applying the template, it looks
+    # like this:
+    # 
+    # - <|im_start|>user\nintroduce yourself<|im_end|>\n<|im_start|>assistant\n'
+    # - <|im_start|>user\nlist all prime numbers within 100<|im_end|>\n<|im_start|>assistant\n'
     prompts = [
         "introduce yourself",
         "list all prime numbers within 100",
