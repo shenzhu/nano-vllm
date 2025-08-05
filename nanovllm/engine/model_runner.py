@@ -28,8 +28,12 @@ class ModelRunner:
         default_dtype = torch.get_default_dtype()
         torch.set_default_dtype(hf_config.torch_dtype)
         torch.set_default_device("cuda")
+
+        # Create model and load model weights
         self.model = Qwen3ForCausalLM(hf_config)
         load_model(self.model, config.model)
+
+        # Sampling layer after the logits are calculated
         self.sampler = Sampler()
         self.warmup_model()
         self.allocate_kv_cache()
@@ -207,7 +211,10 @@ class ModelRunner:
 
     def run(self, seqs: list[Sequence], is_prefill: bool) -> list[int]:
         input_ids, positions = self.prepare_prefill(seqs) if is_prefill else self.prepare_decode(seqs)
+
+        # Only sample in the main process
         temperatures = self.prepare_sample(seqs) if self.rank == 0 else None
+    
         logits = self.run_model(input_ids, positions, is_prefill)
         token_ids = self.sampler(logits, temperatures).tolist() if self.rank == 0 else None
         reset_context()
