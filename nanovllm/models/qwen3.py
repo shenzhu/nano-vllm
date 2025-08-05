@@ -196,8 +196,12 @@ class Qwen3ForCausalLM(nn.Module):
     ) -> None:
         super().__init__()
         self.model = Qwen3Model(config)
+
+        # Linear layer to convert hidden states from high-dimension space into vocab size,
+        # the result of the linear layer is logits
         self.lm_head = ParallelLMHead(config.vocab_size, config.hidden_size)
         if config.tie_word_embeddings:
+            # Weight tying, share the weights between the embedding layer and the lm_head layer
             self.lm_head.weight.data = self.model.embed_tokens.weight.data
 
     def forward(
