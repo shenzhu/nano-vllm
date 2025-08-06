@@ -8,8 +8,17 @@ def apply_rotary_emb(
     cos: torch.Tensor,
     sin: torch.Tensor,
 ) -> torch.Tensor:
+    """
+    Args:
+        x (torch.Tensor): [num_tokens, n_heads, head_dim]
+        cos (torch.Tensor): [num_tokens, rotary_dim/head_dim]
+        sin (torch.Tensor): [num_tokens, rotary_dim/head_dim]
+    """
+    # [num_tokens, rotary_dim/head_dim] -> [num_tokens, 1, rotary_dim]
     cos = cos.unsqueeze(-2)
     sin = sin.unsqueeze(-2)
+
+    # Split input into first and second half
     x1, x2 = torch.chunk(x.to(torch.float32), 2, dim=-1)
     y1 = x1 * cos - x2 * sin
     y2 = x2 * cos + x1 * sin
@@ -26,14 +35,18 @@ class RotaryEmbedding(nn.Module):
         base: float,
     ) -> None:
         super().__init__()
-        self.head_size = head_size
-        assert rotary_dim == head_size
-        inv_freq = 1.0 / (base**(torch.arange(0, rotary_dim, 2, dtype=torch.float) / rotary_dim))
-        t = torch.arange(max_position_embeddings, dtype=torch.float)
-        freqs = torch.einsum("i,j -> ij", t, inv_freq)
+        self.head_size = head_size # 128
+        assert rotary_dim == head_size # 128
+
+        inv_freq = 1.0 / (base**(torch.arange(0, rotary_dim, 2, dtype=torch.float) / rotary_dim)) # 64
+        t = torch.arange(max_position_embeddings, dtype=torch.float) # [40960]
+        # Calculate the outer product,
+        # freqs[i, j] stands for the rotation angle of the ith token at jth dimension
+        freqs = torch.einsum("i,j -> ij", t, inv_freq) # [40960, 64]
+
         cos = freqs.cos()
         sin = freqs.sin()
-        cache = torch.cat((cos, sin), dim=-1)
+        cache = torch.cat((cos, sin), dim=-1) # [40960, 128]
         self.register_buffer("cos_sin_cache", cache, persistent=False)
 
     @torch.compile

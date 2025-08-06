@@ -161,6 +161,9 @@ class ModelRunner:
         slot_mapping = []
         block_tables = None
         for seq in seqs:
+            # The dimensions of the input sequences may not be the same size, and they are concatenated
+            # together to form a single input sequence, therefore, we need to record the positions of each
+            # token
             seqlen = len(seq)
             input_ids.extend(seq[seq.num_cached_tokens:])
             positions.extend(list(range(seq.num_cached_tokens, seqlen)))
@@ -195,6 +198,8 @@ class ModelRunner:
         slot_mapping = []
         context_lens = []
         for seq in seqs:
+            # `append` is used instead of `extend`, because in decode there's only one token one time,
+            # compared with prefill where it could have many tokens
             input_ids.append(seq.last_token)
             positions.append(len(seq))
             context_lens.append(len(seq))
