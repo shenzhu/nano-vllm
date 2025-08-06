@@ -95,8 +95,12 @@ class ModelRunner:
     def warmup_model(self):
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
+
+        # max_num_batched_tokens: Max num of tokens per batch
+        # max_model_len: Max num of tokens per sequence
         max_num_batched_tokens, max_model_len = self.config.max_num_batched_tokens, self.config.max_model_len
         num_seqs = min(max_num_batched_tokens // max_model_len, self.config.max_num_seqs)
+
         seqs = [Sequence([0] * max_model_len) for _ in range(num_seqs)]
         self.run(seqs, True)
         torch.cuda.empty_cache()
@@ -104,14 +108,35 @@ class ModelRunner:
     def allocate_kv_cache(self):
         config = self.config
         hf_config = config.hf_config
+
         free, total = torch.cuda.mem_get_info()
         used = total - free
+
+        # For current torch process
+        #
+        # Previously ModelRunner has run the warmup process, which will record the
+        # memory usage in that computation
         peak = torch.cuda.memory_stats()["allocated_bytes.all.peak"]
         current = torch.cuda.memory_stats()["allocated_bytes.all.current"]
+
+        # Every GPU only performs calculation on its assigned heads
         num_kv_heads = hf_config.num_key_value_heads // self.world_size
+
+        # Calculate the bytes for each block, in essence it can be calculated as block_size * size_per_token
+        # we have already known the block_size, the key is how to calculate size_per_token. The rest part of
+        # the code is calculating size_per_token
+        # (2 * hf_config.num_hidden_layers * num_kv_heads * hf_config.head_dim * hf_config.torch_dtype.itemsize)
+        #
+        # 2: Stadnds for k and v
+        # num_hidden_layers: The layers of attention, for example, qwen3-0.6B has 28 layers
+        # self.block_size: How many tokens per block, defined by paged attention, 
+        # hf_config.head_dim: The hidden dimension of head
+        # num_kv_heads: Calculated above, the number of kv heads
+        # hf_config.torch_dtype.itemsize: The size of each element in the tensor, for example, float16 is 2 bytes
         block_bytes = 2 * hf_config.num_hidden_layers * self.block_size * num_kv_heads * hf_config.head_dim * hf_config.torch_dtype.itemsize
-        config.num_kvcache_blocks = int(total * config.gpu_memory_utilization - used - peak + current) // block_bytes
+        config.num_kvcache_blocks = int(total * config.gpu_memory_utilization - used - (peak - current)) // block_bytes
         assert config.num_kvcache_blocks > 0
+
         self.kv_cache = torch.zeros(2, hf_config.num_hidden_layers, config.num_kvcache_blocks, self.block_size, num_kv_heads, hf_config.head_dim)
         layer_id = 0
         for module in self.model.modules():
