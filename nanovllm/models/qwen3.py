@@ -94,9 +94,21 @@ class Qwen3MLP(nn.Module):
         hidden_act: str,
     ) -> None:
         super().__init__()
+        # The SwiGLU feed forward layer has two linear layers(they are named
+        # gate layer and up layer in the codebase) on the input and one linear
+        # layer on the output
+        #
+        # The following code tries to implement the SwiGLU feed forward layer
+        # in a parallel way. The gate layer and up layer are merged into one
+        # linear layer, their calculations are carried out in different GPUs
+        # with column parallelism.
+        # 
+        # The output layer is a row parallel linear layer, which means the
+        # weights of the output layer is split into multiple GPUs for calculation
+        # and the results are summed to get the final result.
         self.gate_up_proj = MergedColumnParallelLinear(
-            hidden_size,
-            [intermediate_size] * 2,
+            hidden_size, # Size of the dimension
+            [intermediate_size] * 2, # Combine two layers together
             bias=False,
         )
         self.down_proj = RowParallelLinear(

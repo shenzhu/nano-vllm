@@ -10,5 +10,6 @@ class SiluAndMul(nn.Module):
 
     @torch.compile
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Chunks the output to 2 parts and apply SwiGLU(silu and element-wise multiply)
         x, y = x.chunk(2, -1)
         return F.silu(x) * y
