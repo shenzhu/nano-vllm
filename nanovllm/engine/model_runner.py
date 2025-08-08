@@ -178,8 +178,10 @@ class ModelRunner:
             for i in range(seq.num_cached_blocks, seq.num_blocks):
                 start = seq.block_table[i] * self.block_size
                 if i != seq.num_blocks - 1:
+                    # Not last block
                     end = start + self.block_size
                 else:
+                    # Last block
                     end = start + seq.last_block_num_tokens 
                 slot_mapping.extend(list(range(start, end)))
         if cu_seqlens_k[-1] > cu_seqlens_q[-1]:    # prefix cache
